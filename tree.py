@@ -4,11 +4,10 @@ class Tree(object):
         self.parent = None
         self.children = []
 
-    def to_str(self, indent = ""):
-        s = indent + str(self.node) + '\n'
-        indent += "  "
+    def to_str(self, depth=0):
+        s = depth * "  " + str(self.node) + '\n'
         for child in self.children:
-            s += child.to_str(indent)
+            s += child.to_str(depth + 1)
         return s
 
     def __str__(self):

@@ -32,7 +32,7 @@ print("Trying to find a TD where min-fill and min-degree produce different width
 for iteration in range(10000):
     num_vertices = 5
     num_edges = random.randint(0, num_vertices * (num_vertices-1) / 2)
-    graph = Graph(num_vertices)
+    g = Graph(num_vertices)
     for (x,y) in random.sample([(x,y) for x in g.vertices for y in g.vertices if x < y], num_edges):
         g.add_edge(x,y)
 
