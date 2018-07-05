@@ -47,28 +47,26 @@ class Tree(object):
     # Returns new root
     def move_superset_children(self):
         # If a child is a superset, move it up
-        for child in self.children:
-            if child.node.issuperset(self.node):
-                # print(f"Child {child.node} is superset of {self.node}")
-                # Transfer all other children of self to that child
-                for other_child in self.children:
-                    if other_child is not child:
-                        # print(f"Moving child {other_child.node} to new parent {child.node}")
-                        child.add_child(other_child)
-                self.children.clear()
-                self.parent = None
-                child.parent = None
+        superset_children = (c for c in self.children if c.node.issuperset(self.node))
+        for child in superset_children:
+            # print(f"Child {child.node} is superset of {self.node}")
+            # Transfer all other children of self to that child
+            other_children = (c for c in self.children if c is not child)
+            for other_child in other_children:
+                # print(f"Moving child {other_child.node} to new parent {child.node}")
+                child.add_child(other_child)
+            self.children.clear()
+            self.parent = None
+            child.parent = None
 
-                # self should now become child -- and we continue with removing further down
-                return child.move_superset_children()
+            # self should now become child -- and we continue with removing further down
+            return child.move_superset_children()
 
         # Recurse
         new_children = []
         for child in self.children:
             new_children.append(child.move_superset_children())
-        #self.children = new_children
         self.children.clear()
-        #map(self.add_child, new_children)
         for child in new_children:
             self.add_child(child)
         return self
