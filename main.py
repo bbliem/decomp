@@ -25,6 +25,7 @@ print()
 print(f"Min-fill TD (width {min_fill_td.width()}):\n{min_fill_td}")
 print()
 print(f"Min-degree TD (width {min_degree_td.width()}):\n{min_degree_td}")
+print()
 
 print("Trying to find a TD where min-fill and min-degree produce different widths...")
 
@@ -40,12 +41,12 @@ for iteration in range(10000):
     min_degree_td = Decomposer(g).decompose(Graph.min_degree_vertex)
 
     if min_fill_td.width() != min_degree_td.width():
+        print()
         print(f"Graph:\n{g}")
         print()
         print(f"Min-fill TD (width {min_fill_td.width()}):\n{min_fill_td}")
         print()
         print(f"Min-degree TD (width {min_degree_td.width()}):\n{min_degree_td}")
-        print()
         exit()
 
 print("Giving up.")

@@ -5,9 +5,9 @@ class Tree(object):
         self.children = []
 
     def to_str(self, depth=0):
-        s = depth * "  " + str(self.node) + '\n'
+        s = depth * "  " + str(self.node)
         for child in self.children:
-            s += child.to_str(depth + 1)
+            s += '\n' + child.to_str(depth + 1)
         return s
 
     def __str__(self):
