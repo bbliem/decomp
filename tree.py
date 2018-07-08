@@ -5,7 +5,7 @@ class Tree(object):
         self.children = []
 
     def to_str(self, depth=0):
-        s = depth * "  " + str(self.node)
+        s = depth * "  " + ','.join([str(i) for i in self.node])
         for child in self.children:
             s += '\n' + child.to_str(depth + 1)
         return s
@@ -17,6 +17,21 @@ class Tree(object):
         if isinstance(other, self.__class__):
             return (self.node == other.node) and (self.children == other.children)
         return NotImplemented
+
+    def introduced(self):
+        if self.children:
+            child_elements = type(self.node).union(*(c.node for c in self.children))
+            return self.node - child_elements
+        else:
+            return self.node
+
+    def common(self):
+        if self.children:
+            # Connectedness condition makes sure this works
+            assert len(set(self.node & c.node for c in self.children)) == 1
+            return self.node & self.children[0].node
+        else:
+            return type(self.node)()
 
     # Size of largest bag minus one
     def width(self):

@@ -10,7 +10,7 @@ class Decomposer(object):
         self.td_roots = []
 
     def eliminate(self, vertex):
-        new_bag = self.graph.neighborhood(vertex)
+        new_bag = frozenset(self.graph.neighborhood(vertex))
         new_subtree = Tree(new_bag)
 
         # Eliminate vertex and connect neighbors

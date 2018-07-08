@@ -4,7 +4,7 @@ class Graph(object):
         self.vertices = set(range(1,num_vertices+1))
         self.neighbors = {}
         for v in self.vertices:
-            self.neighbors[v] = set()
+            self.neighbors[v] = []
 
     def __str__(self):
         pairs = []
@@ -23,8 +23,12 @@ class Graph(object):
         assert x in self.vertices
         assert y in self.vertices
         assert x != y
-        self.neighbors[x].add(y)
-        self.neighbors[y].add(x)
+        if y not in self.neighbors[x]:
+            assert x not in self.neighbors[y]
+            self.neighbors[x].append(y)
+            self.neighbors[y].append(x)
+        else:
+            assert x in self.neighbors[y]
 
     def remove_vertex(self, v):
         self.vertices.remove(v)
@@ -34,13 +38,15 @@ class Graph(object):
         self.num_vertices -= 1
 
     def neighborhood(self, vertex):
-        return {vertex} | self.neighbors[vertex]
+        return [vertex] + self.neighbors[vertex]
 
     def min_degree_vertex(self, max_width=None):
         result = None
         min_degree = self.num_vertices
         for v in self.vertices:
-            if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
+            #if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
+            # Better performance:
+            if not max_width or len(self.neighbors[v]) <= max_width:
                 if len(self.neighbors[v]) < min_degree:
                     min_degree = len(self.neighbors[v])
                     result = v
@@ -58,7 +64,9 @@ class Graph(object):
         result = None
         min_fill = self.num_vertices * self.num_vertices
         for v in self.vertices:
-            if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
+            #if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
+            # Better performance:
+            if not max_width or len(self.neighbors[v]) <= max_width:
                 fill = self.num_unconnected_neighbor_pairs(v)
                 if fill < min_fill:
                     min_fill = fill
