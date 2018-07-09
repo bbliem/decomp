@@ -1,4 +1,4 @@
-class Tree(object):
+class TD(object):
     def __init__(self, node):
         self.node = node
         self.parent = None
@@ -25,13 +25,14 @@ class Tree(object):
         else:
             return self.node
 
-    def common(self):
-        if self.children:
-            # Connectedness condition makes sure this works
-            assert len(set(self.node & c.node for c in self.children)) == 1
-            return self.node & self.children[0].node
-        else:
-            return type(self.node)()
+    # For each child, elements that are present in both this TD node and the child
+    def shared(self):
+        return [[x for x in self.node if x in c.node] for c in self.children]
+
+    # Returns those elements of the node that are also in some child node
+    # def common(self):
+    #     return type(self.node).union(
+    #             *[self.node & c.node for c in self.children])
 
     # Size of largest bag minus one
     def width(self):

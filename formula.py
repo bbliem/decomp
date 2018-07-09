@@ -37,6 +37,9 @@ class Clause(namedtuple("Clause", "weight literals")):
     def __repr__(self):
         return f'({" | ".join([str(l) for l in self.literals])})'
 
+    def __hash__(self):
+        return hash(self.weight) ^ hash(tuple(self.literals))
+
     def variables(self):
         return (lit.var for lit in self.literals)
 
