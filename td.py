@@ -146,7 +146,7 @@ class TD(object):
                 join_node = TD(join_elements)
                 self.add_child(join_node)
             else:
-                join_node = self.node
+                join_node = self
 
             # Join node's children:
             for c in children:
