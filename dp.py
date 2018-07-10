@@ -28,6 +28,10 @@ def delete_bit(bits, i):
     bits <<= i
     return bits | right_part
 
+def select_falsifying_ep(ept):
+    assert any(ep.num_falsified > 0 for ep in ept)
+    return next(ep for ep in ept if ep.num_falsified > 0)
+
 
 class Assignment(object):
     # variables: list of variables.
@@ -136,7 +140,7 @@ class Row(object):
 
     def __str__(self):
         return "; ".join([str(self.assignment),
-                          str(self.falsified),
+                          '{'+ ','.join(str(c) for c in self.falsified) + '}',
                           str(self.num_falsified)])
 
     def __repr__(self):
@@ -161,6 +165,20 @@ class Row(object):
                                         *[r.assignment for r in ept])
         falsified = self.falsified.union(*(r.falsified for r in ept))
         return Row(assignment, falsified, self.num_falsified, [])
+
+    # def find_falsified(self):
+    #     """Find a "small" set of clauses such that every extension of this row
+    #     falsifies at least one of these clauses.
+    # 
+    #     Formally, let C be a collection that contains, for each extension of
+    #     this row, the clauses falsified by this extension. We are looking for a
+    #     small hitting set for C.
+    # 
+    #     TODO: Explain more, write a one-liner docstring..."""
+    #     assert self.num_falsified > 0
+    #     if self.falsified:
+    #         return self.falsified
+    #     # TODO
 
 
 class RowIterator(object):
@@ -258,12 +276,21 @@ class Table(object):
     def unsat(self):
         return all(r.num_falsified > 0 for r in self.rows.values())
 
-    def unsat_descendants(self):
-        if self.unsat():
+    def sat(self):
+        return not self.unsat()
+
+    def locally_unsat(self):
+        return all(r.falsified for r in self.rows.values())
+
+    def deep_unsat_descendants(self):
+        if self.unsat() and all(c.sat() for c in self.children):
             yield self
-        for c in self.children:
-            for d in c.unsat_descendants():
-                yield d
+        else:
+            if self.locally_unsat():
+                yield self
+            for c in self.children:
+                for d in c.deep_unsat_descendants():
+                    yield d
 
     def compute(self):
         for child in self.children:
@@ -320,9 +347,35 @@ class Table(object):
                     new_row = Row(assignment, falsified, num_falsified, [ept])
                     self.rows[assignment] = new_row
 
+    def unsat_cores(self):
+        for table in self.deep_unsat_descendants():
+            yield table.unsat_core()
+
+    def unsat_core(self):
+        assert self.unsat()
+        # Unify the falsified clauses of each row.
+        # If a row has no falsified clauses, recursively extend it until we
+        # reach falsified clauses.
+        # return frozenset.union(*(r.find_falsified()
+        #                          for r in self.rows.values()))
+        # TODO explain the following
+        core = set()
+        stack = [r for r in self.rows.values()]
+        while stack:
+            row = stack.pop()
+            if row.falsified:
+                core |= row.falsified
+            else:
+                # For each EPT of the row, push an arbitrary EP with positive
+                # num_falsified to the stack
+                for ept in row.epts:
+                    stack.append(select_falsifying_ep(ept))
+        return core
+
+
 
 if __name__ == "__main__":
-    signal(SIGPIPE,SIG_DFL)
+    signal(SIGPIPE, SIG_DFL)
 
     parser = argparse.ArgumentParser(
             description="Dynamic programming on a TD of a MaxSAT instance")
@@ -341,6 +394,7 @@ if __name__ == "__main__":
         g = formula.primal_graph()
         print(g)
         td = Decomposer(g).decompose(Graph.min_degree_vertex)
+        td.weakly_normalize()
         print(td)
 
         root_table = Table(td, formula)
@@ -349,11 +403,12 @@ if __name__ == "__main__":
         print("Resulting tables:")
         root_table.print_recursively()
 
-        for row in root_table.rows.values():
-            print(f"Extensions of root row {row}:")
-            for extension in row:
-                print(extension)
+        # for row in root_table.rows.values():
+        #     print(f"Extensions of root row {row}:")
+        #     for extension in row:
+        #         print(extension)
 
         if root_table.unsat():
-            for d in root_table.unsat_descendants():
-                print(f"Unsat descendant:\n{d}")
+            print("Some cores:")
+            for core in root_table.unsat_cores():
+                print(core)

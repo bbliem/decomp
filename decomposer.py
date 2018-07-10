@@ -54,7 +54,7 @@ class Decomposer(object):
 
     def decompose(self, method, max_width=None):
         """Return the decomposition using the specified method.
-        
+
         The method is a function returning the next vertex to eliminate. If
         max_width is given, only produce bags of at most the given width and
         then put all remaining vertices into a big bag at the root."""
