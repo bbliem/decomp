@@ -54,13 +54,20 @@ class Graph(object):
 
     def num_unconnected_neighbor_pairs(self, v):
         result = 0
-        for (x,y) in [(x,y) for x in self.neighbors[v] for y in self.neighbors[v] if x < y]:
+        for (x,y) in [(x,y) for x in self.neighbors[v]
+                            for y in self.neighbors[v]
+                            if x < y]:
             if y not in self.neighbors[x]:
                 result += 1
         return result
 
-    # Returns a vertex with minimum fill-in value such that a bag with width at most max_width results; if there is no such vertex, returns None
     def min_fill_vertex(self, max_width=None):
+        """Return a min-fill vertex that produces a bag of given maximum size.
+        
+        The result is a vertex of minimum fill-in value whose elimination would
+        result in a bag with at most max_width elements, if there is such a
+        vertex. Otherwise, return None.
+        """
         result = None
         min_fill = self.num_vertices * self.num_vertices
         for v in self.vertices:

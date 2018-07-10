@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+import argparse
 from collections import namedtuple
+from signal import signal, SIGPIPE, SIG_DFL
 import warnings
 
 from graph import Graph
@@ -10,11 +12,6 @@ class Literal(namedtuple("Literal", "sign var")):
     # https://stackoverflow.com/questions/7914152/can-i-overwrite-the-string-form-of-a-namedtuple#comment32362249_7914212
     __slots__ = ()
 
-    # def __new__(cls, integer):
-    #     sign = (integer >= 0)
-    #     var = abs(integer)
-    #     self = super(Literal, cls).__new__(cls, sign, var)
-    #     return self
     @classmethod
     def from_int(cls, integer):
         sign = (integer >= 0)
@@ -31,10 +28,10 @@ class Literal(namedtuple("Literal", "sign var")):
 class Clause(namedtuple("Clause", "weight literals")):
     __slots__ = ()
 
-    # XXX actually this should be __str__, but printing a list of clauses
-    # prints the reprs. Here, __repr__ is, strictly speaking, not correct
-    # because it's not unique.
     def __repr__(self):
+        # XXX actually this should be __str__, but printing a list of clauses
+        # prints the reprs. Here, __repr__ is, strictly speaking, not correct
+        # because it's not unique.
         return f'({" | ".join([str(l) for l in self.literals])})'
 
     def __hash__(self):
@@ -43,13 +40,13 @@ class Clause(namedtuple("Clause", "weight literals")):
     def variables(self):
         return (lit.var for lit in self.literals)
 
-    # Is the clause satisfied by a given set of literals?
     def satisfied(self, assignment):
+        """Is the clause satisfied by a given set of literals?"""
         return any(assignment[l.var] == l.sign for l in self.literals
                 if l.var in assignment.variables)
 
-    # Is the clause falsified by a given set of literals?
     def falsified(self, assignment):
+        """Is the clause falsified by a given set of literals?"""
         return all(
                 l.var in assignment.variables
                 and assignment[l.var] != l.sign
@@ -70,7 +67,8 @@ class Formula(object):
 
             elif fields[0] == 'p':
                 # parameters line
-                assert len(fields) == 5 and fields[1] == "wcnf", "Unexpected file format"
+                assert len(fields) == 5 and fields[1] == "wcnf", \
+                        "Unexpected file format"
                 self.num_vars = int(fields[2])
                 num_clauses = int(fields[3])
                 self.hard_weight = int(fields[3])
@@ -80,7 +78,9 @@ class Formula(object):
                 assert fields[-1] == '0'
                 weight = int(fields[0])
                 assert 0 < weight <= self.hard_weight
-                clause = [Literal.from_int(int(x)) for x in frozenset(fields[1:-1])]
+                clause = [
+                        Literal.from_int(int(x))
+                        for x in frozenset(fields[1:-1])]
                 assert all([1 <= l.var <= self.num_vars for l in clause]), \
                        "Invalid variable number"
                 for l in clause:
@@ -114,7 +114,14 @@ class Formula(object):
 
 
 if __name__ == "__main__":
-    with open("test.wcnf") as f:
+    signal(SIGPIPE,SIG_DFL)
+
+    parser = argparse.ArgumentParser(
+            description="Convert a WCNF formula to a graph and decompose it")
+    parser.add_argument("file")
+    args = parser.parse_args()
+
+    with open(args.file) as f:
         f = Formula(f)
         print(f)
         g = f.primal_graph()

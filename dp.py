@@ -28,14 +28,17 @@ def delete_bit(bits, i):
     bits <<= i
     return bits | right_part
 
+
 class Assignment(object):
     # variables: list of variables.
-    # bits store the truth values of the given variables, first variable is leftmost bit.
+    # bits store the truth values of the given variables, first variable is
+    # leftmost bit.
     def __init__(self, variables, bits):
         self.variables = variables
         self.bits = bits
         # Map variable to index in variable list / bit array
-        self.index_of = {v: i for v, i in
+        self.index_of = {
+                v: i for v, i in
                 zip(self.variables, range(len(self.variables) - 1, -1, -1))}
 
     def __repr__(self):
@@ -49,7 +52,8 @@ class Assignment(object):
     # Two assignments are only equal if their variables are in the same order
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return self.variables == other.variables and self.bits == other.bits
+            return (self.variables == other.variables
+                    and self.bits == other.bits)
         return NotImplemented
 
     def __getitem__(self, key):
@@ -91,7 +95,8 @@ class Assignment(object):
         if not assignments:
             return Assignment([], 0)
 
-        # We first just append all assignments and then eliminate duplicate variables
+        # We first just append all assignments and then eliminate duplicate
+        # variables
         combined_vars = []
         combined_bits = 0
         for a in assignments:
@@ -210,8 +215,11 @@ class Table(object):
             self.children.append(Table(subtree, formula))
 
         self.local_clauses = formula.induced_clauses(tree.node)
-        self.new_clauses = [] # clauses that contain an introduced variable
-        self.shared_clauses = [[]] * len(self.children) # For each child, clauses that are "present" in both this TD node and the child
+        # Store clauses that contain an introduced variable.
+        self.new_clauses = []
+        # For each child, store clauses that are "present" in both this TD node
+        # and the child.
+        self.shared_clauses = [[]] * len(self.children)
         for c in self.local_clauses:
             if any(v in self.new_vars for v in c.variables()):
                 self.new_clauses.append(c)
@@ -271,8 +279,9 @@ class Table(object):
                 log.debug("  EPT not joinable")
                 continue
 
-            restricted_assignments = [r.assignment.restrict(self.shared_vars[i])
-                                      for i, r in enumerate(ept)]
+            restricted_assignments = [
+                    r.assignment.restrict(self.shared_vars[i])
+                    for i, r in enumerate(ept)]
             log.debug(f"  Restricted assignments: {restricted_assignments}")
             inherited_assignment = Assignment.combine(*restricted_assignments)
             log.debug(f"  Inherited assignment: {inherited_assignment}")
@@ -290,15 +299,15 @@ class Table(object):
                 falsified = frozenset(c for c in self.local_clauses
                                       if c.falsified(assignment))
                 num_falsified = num_forgotten_falsified + len(falsified)
-                log.debug(f"    Row candidate: "
-                          f"{Row(assignment, falsified, num_falsified, [ept])}")
+                log.debug(
+                        f"    Row candidate: "
+                        f"{Row(assignment, falsified, num_falsified, [ept])}")
 
                 if assignment in self.rows:
-                    log.debug("    Assignment already in table")
                     # XXX unnecessary extra lookup
                     row = self.rows[assignment]
                     if num_falsified < row.num_falsified:
-                        log.debug("    Replacing existing row due to improvement")
+                        log.debug("    Replacing existing row")
                         row.falsified = falsified
                         row.num_falsified = num_falsified
                         row.epts = [ept]
@@ -307,6 +316,7 @@ class Table(object):
                         assert row.falsified == falsified
                         row.epts.append(ept)
                 else:
+                    log.debug("    Inserting new row")
                     new_row = Row(assignment, falsified, num_falsified, [ept])
                     self.rows[assignment] = new_row
 
@@ -315,7 +325,7 @@ if __name__ == "__main__":
     signal(SIGPIPE,SIG_DFL)
 
     parser = argparse.ArgumentParser(
-            description="Convert a WCNF formula to a graph and decompose it")
+            description="Dynamic programming on a TD of a MaxSAT instance")
     parser.add_argument("file")
     parser.add_argument("--log", default="info")
     args = parser.parse_args()

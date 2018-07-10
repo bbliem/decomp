@@ -20,7 +20,9 @@ class Decomposer(object):
         new_subtree = TD(new_bag)
 
         # Eliminate vertex and connect neighbors
-        for (x,y) in [(x,y) for x in self.graph.neighbors[vertex] for y in self.graph.neighbors[vertex] if x < y]:
+        for (x,y) in [(x,y) for x in self.graph.neighbors[vertex]
+                            for y in self.graph.neighbors[vertex]
+                            if x < y]:
             self.graph.add_edge(x,y)
         self.graph.remove_vertex(vertex)
 
@@ -43,20 +45,22 @@ class Decomposer(object):
             new_root.add_child(node)
         self.td_roots = [new_root]
 
-    # Connect the parentless nodes in an arbitrary way
     def connect_roots(self):
+        """Connect the parentless nodes in an arbitrary way."""
         assert self.td_roots, "No bags have been created"
         for x,y in zip(self.td_roots, self.td_roots[1:]):
             x.add_child(y)
         self.td_roots = [self.td_roots[0]]
 
-    # Returns the decomposition using the specified method (function returning
-    # next vertex to eliminate). If max_width is given, only produce bags of at
-    # most the given width and then put all remaining vertices into a big bag
-    # at the root.
     def decompose(self, method, max_width=None):
+        """Return the decomposition using the specified method.
+        
+        The method is a function returning the next vertex to eliminate. If
+        max_width is given, only produce bags of at most the given width and
+        then put all remaining vertices into a big bag at the root."""
         while True:
-            # Determine vertex to eliminate, as long as we get a bag of width at most max_width
+            # Determine vertex to eliminate, as long as we get a bag of width
+            # at most max_width
             v = method(self.graph, max_width)
             if v:
                 self.eliminate(v)
@@ -78,7 +82,8 @@ class Decomposer(object):
 if __name__ == "__main__":
     signal(SIGPIPE, SIG_DFL)
 
-    # The following graph results in TDs of different width for min-fill (3) and min-degree (4)
+    # The following graph results in TDs of different width for min-fill (3)
+    # and min-degree (4)
     g = Graph(6)
     g.add_edge(1,2)
     g.add_edge(1,3)
@@ -101,14 +106,17 @@ if __name__ == "__main__":
     print(f"Min-degree TD (width {min_degree_td.width()}):\n{min_degree_td}")
     print()
 
-    print("Trying to find a TD where min-fill and min-degree produce different widths...")
+    print("Trying to find a TD where min-fill and min-degree produce different"
+          "widths...")
 
     # Seems unlikely we can find an example with less than 6 vertices
     for iteration in range(10000):
         num_vertices = 5
         num_edges = random.randint(0, num_vertices * (num_vertices-1) / 2)
         g = Graph(num_vertices)
-        for (x,y) in random.sample([(x,y) for x in g.vertices for y in g.vertices if x < y], num_edges):
+        for (x,y) in random.sample([(x,y) for x in g.vertices
+                                          for y in g.vertices
+                                          if x < y], num_edges):
             g.add_edge(x,y)
 
         min_fill_td = Decomposer(g).decompose(Graph.min_fill_vertex)
@@ -120,7 +128,8 @@ if __name__ == "__main__":
             print()
             print(f"Min-fill TD (width {min_fill_td.width()}):\n{min_fill_td}")
             print()
-            print(f"Min-degree TD (width {min_degree_td.width()}):\n{min_degree_td}")
+            print(f"Min-degree TD (width {min_degree_td.width()}):\n"
+                  f"{min_degree_td}")
             exit()
 
     print("Giving up.")

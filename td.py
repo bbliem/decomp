@@ -1,4 +1,9 @@
 class TD(object):
+    """A tree decomposition.
+    
+    The attributes represent a node of the decomposition, and the child nodes
+    are stored in self.children."""
+
     def __init__(self, node):
         self.node = node
         self.parent = None
@@ -15,27 +20,27 @@ class TD(object):
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return (self.node == other.node) and (self.children == other.children)
+            return (self.node == other.node
+                    and self.children == other.children)
         return NotImplemented
 
     def introduced(self):
         if self.children:
-            child_elements = type(self.node).union(*(c.node for c in self.children))
+            child_elements = type(self.node).union(
+                    *(c.node for c in self.children))
             return self.node - child_elements
         else:
             return self.node
 
-    # For each child, elements that are present in both this TD node and the child
     def shared(self):
+        """Return a list of lists of shared elements.
+
+        The result is a list containing, for each child, a list, which contains
+        elements that are present in both this TD node and the child."""
         return [[x for x in self.node if x in c.node] for c in self.children]
 
-    # Returns those elements of the node that are also in some child node
-    # def common(self):
-    #     return type(self.node).union(
-    #             *[self.node & c.node for c in self.children])
-
-    # Size of largest bag minus one
     def width(self):
+        """Return the size of the largest bag minus one."""
         widths = [child.width() for child in self.children]
         widths.append(len(self.node) - 1)
         return max(widths)
@@ -44,8 +49,8 @@ class TD(object):
         child.parent = self
         self.children.append(child)
 
-    # Recursively remove all children that are subsets
     def remove_subset_children(self):
+        """Recursively remove all children that are subsets."""
         new_children = []
         for child in self.children:
             if child.node.issubset(self.node):
@@ -59,22 +64,25 @@ class TD(object):
                 child.remove_subset_children()
         self.children = new_children
 
-    # Returns new root
     def move_superset_children(self):
+        """Recursively remove nodes having a child that is a superset.
+        
+        Returns the new root."""
+
         # If a child is a superset, move it up
-        superset_children = (c for c in self.children if c.node.issuperset(self.node))
+        superset_children = (c for c in self.children
+                               if c.node.issuperset(self.node))
         for child in superset_children:
-            # print(f"Child {child.node} is superset of {self.node}")
             # Transfer all other children of self to that child
             other_children = (c for c in self.children if c is not child)
             for other_child in other_children:
-                # print(f"Moving child {other_child.node} to new parent {child.node}")
                 child.add_child(other_child)
             self.children.clear()
             self.parent = None
             child.parent = None
 
-            # self should now become child -- and we continue with removing further down
+            # self should now become child -- and we continue with removing
+            # further down
             return child.move_superset_children()
 
         # Recurse
@@ -86,8 +94,8 @@ class TD(object):
             self.add_child(child)
         return self
 
-    # Returns node with the lexicographically smallest bag
     def canonical_root(self):
+        """Return the node with the lexicographically smallest bag."""
         smallest = self
         for child in self.children:
             x = child.canonical_root()
@@ -95,22 +103,24 @@ class TD(object):
                 smallest = x
         return smallest
 
-    # Flip a subtree around so that this node becomes the root
     def become_root(self):
+        """Flip a subtree around so that this node becomes the root."""
         if self.parent:
             self.parent.become_root()
             self.parent.children.remove(self)
             self.add_child(self.parent)
             self.parent = None
 
-    # Returns new root, which is the node having the lexicographically smallest bag
     def canonize_root(self):
+        """Make the node having the lexicographically smallest bag the root.
+
+        Returns the new root."""
         new_root = self.canonical_root()
         new_root.become_root()
         return new_root
 
-    # Recursively sorts children lexicographically
     def sort(self):
-        self.children = sorted(self.children, key=lambda child: list(child.node))
+        """Recursively sort children lexicographically."""
+        self.children = sorted(self.children, key=lambda c: list(c.node))
         for child in self.children:
             child.sort()
