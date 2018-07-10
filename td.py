@@ -124,3 +124,35 @@ class TD(object):
         self.children = sorted(self.children, key=lambda c: list(c.node))
         for child in self.children:
             child.sort()
+
+    def weakly_normalize(self):
+        """Make this TD weakly normalized.
+
+        That is, add nodes so that the following holds: If a node has more than
+        one child, then its bag and the bags of all children are the same."""
+        for child in self.children:
+            child.weakly_normalize()
+
+        if len(self.children) >= 2:
+            # Add join node (as a child of this node) and its children (which
+            # will be the new parents or this node's children).
+            children = self.children.copy()
+            self.children.clear()
+            child_elements = type(self.node).union(*(c.node for c in children))
+            join_elements = child_elements & self.node
+
+            # Join node:
+            if join_elements != self.node:
+                join_node = TD(join_elements)
+                self.add_child(join_node)
+            else:
+                join_node = self.node
+
+            # Join node's children:
+            for c in children:
+                if c.node == join_elements:
+                    join_node.add_child(c)
+                else:
+                    new_child = TD(join_elements)
+                    new_child.add_child(c)
+                    join_node.add_child(new_child)
