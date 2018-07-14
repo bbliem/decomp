@@ -1,6 +1,6 @@
 c (1) & (-1 | 2) & (-2 | 3) & (4 | -3) & (-4 | 5) & (-5 | 6) & (7 | -6) & (-7)
 c There is only one core, namely the whole formula.
-p wcnf 7 8 1
+p wcnf 7 8 9
 1 1 0
 1 -1 2 0
 1 -2 3 0

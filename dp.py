@@ -5,11 +5,13 @@ import copy
 import itertools
 import logging
 from signal import signal, SIGPIPE, SIG_DFL
+import sys
 
 
+from decomposer import Decomposer
 from formula import Formula, Literal
 from graph import Graph
-from decomposer import Decomposer
+from td import TD
 
 
 log = logging.getLogger(__name__)
@@ -29,8 +31,8 @@ def delete_bit(bits, i):
     return bits | right_part
 
 def select_falsifying_ep(ept):
-    assert any(ep.num_falsified > 0 for ep in ept)
-    return next(ep for ep in ept if ep.num_falsified > 0)
+    assert any(ep.cost > 0 for ep in ept)
+    return next(ep for ep in ept if ep.cost > 0)
 
 
 class Assignment(object):
@@ -132,21 +134,21 @@ class Assignment(object):
 
 
 class Row(object):
-    def __init__(self, assignment, falsified, num_falsified, epts):
+    def __init__(self, assignment, falsified, cost, epts):
         self.assignment = assignment
         self.falsified = falsified
-        self.num_falsified = num_falsified
+        self.cost = cost
         self.epts = epts
 
     def __str__(self):
         return "; ".join([str(self.assignment),
                           '{'+ ','.join(str(c) for c in self.falsified) + '}',
-                          str(self.num_falsified)])
+                          str(self.cost)])
 
     def __repr__(self):
         return "; ".join([repr(self.assignment),
                           repr(self.falsified),
-                          repr(self.num_falsified),
+                          repr(self.cost),
                           repr(self.epts)])
 
     def __iter__(self):
@@ -160,11 +162,11 @@ class Row(object):
     # Returns a new row that extends this row by the given ept. The new row has
     # no EPTs.
     def extend(self, ept):
-        assert all(r.num_falsified <= self.num_falsified for r in ept)
+        assert all(r.cost <= self.cost for r in ept)
         assignment = Assignment.combine(self.assignment,
                                         *[r.assignment for r in ept])
         falsified = self.falsified.union(*(r.falsified for r in ept))
-        return Row(assignment, falsified, self.num_falsified, [])
+        return Row(assignment, falsified, self.cost, [])
 
     # def find_falsified(self):
     #     """Find a "small" set of clauses such that every extension of this row
@@ -175,7 +177,7 @@ class Row(object):
     #     small hitting set for C.
     # 
     #     TODO: Explain more, write a one-liner docstring..."""
-    #     assert self.num_falsified > 0
+    #     assert self.cost > 0
     #     if self.falsified:
     #         return self.falsified
     #     # TODO
@@ -248,7 +250,7 @@ class Table(object):
         self.rows = {} # maps assignments to rows
 
     def __iter__(self):
-        return iter(self.rows)
+        return iter(self.rows.values())
 
     def __str__(self):
         return self.to_str()
@@ -258,13 +260,14 @@ class Table(object):
                 '  ' * indent_level
                 + str(r) for r in self.rows.values())
 
-    def print_recursively(self, indent_level=0):
+    def write_recursively(self, f=sys.stdout, indent_level=0):
+        """Write descendants of this table to the given file."""
         if indent_level > 0:
-            print()
-        print(self.to_str(indent_level))
+            f.write('\n')
+        f.write(self.to_str(indent_level) + '\n')
         indent_level += 1
         for child in self.children:
-            child.print_recursively(indent_level)
+            child.write_recursively(f, indent_level)
 
     def joinable(self, rows):
         assert len(rows) == len(self.children)
@@ -274,7 +277,7 @@ class Table(object):
                    for r in rows[1:])
 
     def unsat(self):
-        return all(r.num_falsified > 0 for r in self.rows.values())
+        return all(r.cost > 0 for r in self.rows.values())
 
     def sat(self):
         return not self.unsat()
@@ -301,7 +304,7 @@ class Table(object):
         # Go through all extension pointer tuples (EPTs)
         for ept in itertools.product(
                 *(table.rows.values() for table in self.children)):
-            log.debug(f"EPT = {ept}")
+            log.debug(f"EPT = {[str(ep) for ep in ept]}")
             if not self.joinable(ept):
                 log.debug("  EPT not joinable")
                 continue
@@ -312,39 +315,40 @@ class Table(object):
             log.debug(f"  Restricted assignments: {restricted_assignments}")
             inherited_assignment = Assignment.combine(*restricted_assignments)
             log.debug(f"  Inherited assignment: {inherited_assignment}")
-            shared_falsified = [
-                    [c for c in r.falsified if c in self.shared_clauses[i]]
+            shared_cost = [
+                    [c.weight for c in r.falsified
+                        if c in self.shared_clauses[i]]
                     for i, r in enumerate(ept)]
-            num_forgotten_falsified = (
-                    sum(r.num_falsified - len(shared_falsified[i])
+            forgotten_cost = (
+                    sum(r.cost - sum(shared_cost[i])
                         for i, r in enumerate(ept)))
-            log.debug(f"  num_forgotten_falsified: {num_forgotten_falsified}")
+            log.debug(f"  forgotten_cost: {forgotten_cost}")
 
             for bits in range(1 << len(self.new_vars)):
                 assignment = inherited_assignment.extend_disjoint(
                         list(self.new_vars), bits)
                 falsified = frozenset(c for c in self.local_clauses
                                       if c.falsified(assignment))
-                num_falsified = num_forgotten_falsified + len(falsified)
+                cost = forgotten_cost + sum(c.weight for c in falsified)
                 log.debug(
                         f"    Row candidate: "
-                        f"{Row(assignment, falsified, num_falsified, [ept])}")
+                        f"{Row(assignment, falsified, cost, [ept])}")
 
                 if assignment in self.rows:
                     # XXX unnecessary extra lookup
                     row = self.rows[assignment]
-                    if num_falsified < row.num_falsified:
+                    if cost < row.cost:
                         log.debug("    Replacing existing row")
                         row.falsified = falsified
-                        row.num_falsified = num_falsified
+                        row.cost = cost
                         row.epts = [ept]
-                    elif num_falsified == row.num_falsified:
+                    elif cost == row.cost:
                         log.debug("    Adding EPT to existing row")
                         assert row.falsified == falsified
                         row.epts.append(ept)
                 else:
                     log.debug("    Inserting new row")
-                    new_row = Row(assignment, falsified, num_falsified, [ept])
+                    new_row = Row(assignment, falsified, cost, [ept])
                     self.rows[assignment] = new_row
 
     def unsat_cores(self):
@@ -367,7 +371,7 @@ class Table(object):
                 core |= row.falsified
             else:
                 # For each EPT of the row, push an arbitrary EP with positive
-                # num_falsified to the stack
+                # cost to the stack
                 for ept in row.epts:
                     stack.append(select_falsifying_ep(ept))
         return core
@@ -389,19 +393,22 @@ if __name__ == "__main__":
     logging.basicConfig(level=log_level_number)
 
     with open(args.file) as f:
+        print("Parsing...")
         formula = Formula(f)
-        print(formula)
+        log.debug(formula)
+        print("Constructing primal graph...")
         g = formula.primal_graph()
-        print(g)
-        td = Decomposer(g).decompose(Graph.min_degree_vertex)
-        td.weakly_normalize()
-        print(td)
-
+        log.debug(g)
+        print("Decomposing...")
+        td = Decomposer(g, Graph.min_degree_vertex,
+                        normalize=TD.weakly_normalize).decompose()
+        log.debug(td)
         root_table = Table(td, formula)
+        print("Solving...")
         root_table.compute()
 
         print("Resulting tables:")
-        root_table.print_recursively()
+        root_table.write_recursively()
 
         # for row in root_table.rows.values():
         #     print(f"Extensions of root row {row}:")

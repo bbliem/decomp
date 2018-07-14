@@ -98,13 +98,13 @@ class TestRow(unittest.TestCase):
     def setUp(self):
         # Row(assignment=[1,2],
         #     falsified={3},
-        #     num_falsified=1,
+        #     cost=1,
         #     epts=[()])
         self.r1 = Row(Assignment([1, 2], 3), {3}, 1, [()])
 
         # Row(assignment=[2,-3],
         #     falsified={4},
-        #     num_falsified=2,
+        #     cost=2,
         #     epts=[(r1)])
         self.r2 = Row(Assignment([2, 3], 2), {4}, 2, [(self.r1,)])
 
@@ -115,7 +115,7 @@ class TestRow(unittest.TestCase):
         self.assertEqual(r2ext.assignment[2], True)
         self.assertEqual(r2ext.assignment[3], False)
         self.assertEqual(set(r2ext.falsified), {3, 4})
-        self.assertEqual(r2ext.num_falsified, 2)
+        self.assertEqual(r2ext.cost, 2)
         self.assertFalse(r2ext.epts)
 
 

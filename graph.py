@@ -46,7 +46,7 @@ class Graph(object):
         for v in self.vertices:
             #if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
             # Better performance:
-            if not max_width or len(self.neighbors[v]) <= max_width:
+            if max_width is None or len(self.neighbors[v]) <= max_width:
                 if len(self.neighbors[v]) < min_degree:
                     min_degree = len(self.neighbors[v])
                     result = v
@@ -63,7 +63,7 @@ class Graph(object):
 
     def min_fill_vertex(self, max_width=None):
         """Return a min-fill vertex that produces a bag of given maximum size.
-        
+
         The result is a vertex of minimum fill-in value whose elimination would
         result in a bag with at most max_width elements, if there is such a
         vertex. Otherwise, return None.
@@ -71,9 +71,9 @@ class Graph(object):
         result = None
         min_fill = self.num_vertices * self.num_vertices
         for v in self.vertices:
-            #if not max_width or len(self.neighborhood(v)) - 1 <= max_width:
+            #if max_width is None or len(self.neighborhood(v)) - 1 <= max_width:
             # Better performance:
-            if not max_width or len(self.neighbors[v]) <= max_width:
+            if max_width is None or len(self.neighbors[v]) <= max_width:
                 fill = self.num_unconnected_neighbor_pairs(v)
                 if fill < min_fill:
                     min_fill = fill

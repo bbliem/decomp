@@ -8,8 +8,17 @@ from graph import Graph
 from td import TD
 
 class Decomposer(object):
-    def __init__(self, graph):
+    """The method is a function returning the next vertex to eliminate. If
+    max_width is given, only produce bags of at most the given width and then
+    put all remaining vertices into a big bag at the root."""
+    def __init__(self, graph, method, **kwargs):
         self.graph = copy.deepcopy(graph)
+        self.method = method
+        self.max_width = kwargs.get("max_width")
+        self.normalize = kwargs.get("normalize")
+        if self.normalize is None:
+            self.normalize = lambda td: None
+
         self.bags_containing = {}
         for v in self.graph.vertices:
             self.bags_containing[v] = []
@@ -45,38 +54,49 @@ class Decomposer(object):
             new_root.add_child(node)
         self.td_roots = [new_root]
 
-    def connect_roots(self):
-        """Connect the parentless nodes in an arbitrary way."""
-        assert self.td_roots, "No bags have been created"
-        for x,y in zip(self.td_roots, self.td_roots[1:]):
+    def connect_roots(self, remainder=set()):
+        """Connect parentless nodes that are disjoint from 'remainder'."""
+        connect, ignore = [], []
+        for td in self.td_roots:
+            if td.node.isdisjoint(remainder):
+                connect.append(td)
+            else:
+                ignore.append(td)
+        if not connect:
+            return
+        for x, y in zip(connect, connect[1:]):
             x.add_child(y)
-        self.td_roots = [self.td_roots[0]]
+        self.td_roots = [connect[0]] + ignore
 
-    def decompose(self, method, max_width=None):
-        """Return the decomposition using the specified method.
-
-        The method is a function returning the next vertex to eliminate. If
-        max_width is given, only produce bags of at most the given width and
-        then put all remaining vertices into a big bag at the root."""
+    def do_eliminations(self):
+        """Eliminate vertices as long as possible within bag size limit."""
         while True:
             # Determine vertex to eliminate, as long as we get a bag of width
             # at most max_width
-            v = method(self.graph, max_width)
+            v = self.method(self.graph, self.max_width)
             if v:
                 self.eliminate(v)
             else:
                 break
 
-        # Put all the remaining vertices into a single bag
-        if self.graph.vertices:
-            self.add_parent_to_roots(self.graph.vertices)
+    def decompose(self):
+        """Return a list of partial decompositions using parameters given in
+        the constructor."""
+        self.do_eliminations()
 
-        map(TD.remove_subset_children, self.td_roots)
+        for td in self.td_roots:
+            td.remove_subset_children()
         self.td_roots = [td.move_superset_children() for td in self.td_roots]
-        self.connect_roots()
+        self.connect_roots(self.graph.vertices)
+        for td in self.td_roots:
+            self.normalize(td)
         # TD.canonize_root()?
         # TD.sort()?
-        return self.td_roots[0]
+        return self.td_roots
+
+    def remainder(self):
+        """Return the remaining part that has not been decomposed."""
+        return self.graph.vertices
 
 
 if __name__ == "__main__":
@@ -96,8 +116,8 @@ if __name__ == "__main__":
     g.add_edge(4,6)
     g.add_edge(5,6)
 
-    min_fill_td = Decomposer(g).decompose(Graph.min_fill_vertex)
-    min_degree_td = Decomposer(g).decompose(Graph.min_degree_vertex)
+    min_fill_td = Decomposer(g, Graph.min_fill_vertex).decompose()[0]
+    min_degree_td = Decomposer(g, Graph.min_degree_vertex).decompose()[0]
 
     print(f"Graph:\n{g}")
     print()
@@ -119,8 +139,8 @@ if __name__ == "__main__":
                                           if x < y], num_edges):
             g.add_edge(x,y)
 
-        min_fill_td = Decomposer(g).decompose(Graph.min_fill_vertex)
-        min_degree_td = Decomposer(g).decompose(Graph.min_degree_vertex)
+        min_fill_td = Decomposer(g, Graph.min_degree_vertex).decompose()[0]
+        min_degree_td = Decomposer(g, Graph.min_degree_vertex).decompose()[0]
 
         if min_fill_td.width() != min_degree_td.width():
             print()

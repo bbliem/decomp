@@ -1,6 +1,6 @@
 class TD(object):
     """A tree decomposition.
-    
+
     The attributes represent a node of the decomposition, and the child nodes
     are stored in self.children."""
 
@@ -45,6 +45,11 @@ class TD(object):
         widths.append(len(self.node) - 1)
         return max(widths)
 
+    def union_of_bags(self):
+        """Return the union of all bags in the TD."""
+        return frozenset.union(self.node,
+                               *(c.union_of_bags() for c in self.children))
+
     def add_child(self, child):
         child.parent = self
         self.children.append(child)
@@ -66,7 +71,7 @@ class TD(object):
 
     def move_superset_children(self):
         """Recursively remove nodes having a child that is a superset.
-        
+
         Returns the new root."""
 
         # If a child is a superset, move it up

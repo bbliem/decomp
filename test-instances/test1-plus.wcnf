@@ -56,7 +56,7 @@ c Observe that the first unsat witness table is at node {5,8}.
 c This would lead to cores containing the clause (-8 | 9).
 c However, this clause is not necessary. If we had a join node below {5,8} that
 c does not contain 8, this would have been detected.
-p wcnf 9 10 1
+p wcnf 9 10 11
 1 1 0
 1 -1 2 0
 1 -2 3 0
