@@ -230,6 +230,7 @@ class Table(object):
         self.local_vars = list(tree.node)
         self.new_vars = list(tree.introduced())
         self.shared_vars = list(tree.shared())
+        self.hard_weight = formula.hard_weight
 
         for subtree in tree.children:
             self.children.append(Table(subtree, formula))
@@ -356,6 +357,9 @@ class Table(object):
             yield table.unsat_core()
 
     def unsat_core(self):
+        # Note that a core for MaxSAT is a set of only soft clauses. It is not
+        # necessarily inconsistent in itself, but in combination with the hard
+        # clauses.
         assert self.unsat()
         # Unify the falsified clauses of each row.
         # If a row has no falsified clauses, recursively extend it until we
@@ -364,7 +368,8 @@ class Table(object):
         #                          for r in self.rows.values()))
         # TODO explain the following
         core = set()
-        stack = [r for r in self.rows.values()]
+        stack = [r for r in self.rows.values() if r.cost < self.hard_weight]
+        # The latter condition excludes rows that have falsified hard clauses.
         while stack:
             row = stack.pop()
             if row.falsified:

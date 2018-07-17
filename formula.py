@@ -65,7 +65,6 @@ class Formula(object):
         self.clauses = []
         variables = set()
         sum_of_soft_clauses_weight = 0
-        contains_hard_clauses = False
 
         for line in f:
             fields = line.split()
@@ -81,16 +80,14 @@ class Formula(object):
                 num_clauses = int(fields[3])
                 # Weight of hard clauses must be greater than the sum of the
                 # weights of all soft clauses
-                hard_weight = int(fields[4])
+                self.hard_weight = int(fields[4])
 
             else:
                 # clause
                 assert fields[-1] == '0'
                 weight = int(fields[0])
                 assert 0 < weight
-                if weight >= hard_weight:
-                    contains_hard_clauses = True
-                else:
+                if weight < self.hard_weight:
                     sum_of_soft_clauses_weight += weight
                 clause = [
                         Literal.from_int(int(x))
@@ -109,11 +106,7 @@ class Formula(object):
             log.warning(f"Saw {len(variables)} variables, "
                         f"but {num_vars} were declared")
 
-        if contains_hard_clauses:
-            log.warning("Instance contains hard clauses, which are currently "
-                        "not supported")
-
-        if hard_weight < sum_of_soft_clauses_weight:
+        if self.hard_weight < sum_of_soft_clauses_weight:
             log.warning("Hard clause weight from p-line less than sum of"
                         "weights of soft clauses")
 
@@ -158,9 +151,13 @@ class Formula(object):
 
     def write_wcnf(self, f=sys.stdout):
         """Write the formula to the given file in WCNF format."""
-        hard_weight = sum(c.weight for c in self.clauses) + 1
+        assert self.hard_weight > sum(c.weight for c in self.clauses
+                                      if c.weight < self.hard_weight), \
+                f"Weight of hard clauses is {self.hard_weight}, but " \
+                f"should be greater than the sum of weights of soft clauses " \
+                + str(sum(c.weight for c in self.clauses))
         f.write(f"p wcnf {len(self.variables())} {len(self.clauses)}"
-                f" {hard_weight}\n")
+                f" {self.hard_weight}\n")
         for c in self.clauses:
             f.write(str(c.weight) + ' ' + ' '.join(str(l) for l in c.literals)
                     + " 0\n")
