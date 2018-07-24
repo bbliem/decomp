@@ -9,8 +9,9 @@ from td import TD
 from collections import namedtuple
 from decomposer import Decomposer
 from dp import Table
-from formula import Formula, Clause
+from formula import Formula, Clause, Literal
 from graph import Graph
+import qm
 
 signal(SIGPIPE, SIG_DFL)
 
@@ -20,28 +21,105 @@ FormulaChange = namedtuple("FormulaChange", "add remove_indices")
 # Contains a list of clauses to add as well as a set of *indices* of clauses to
 # remove
 
-def process_table(table, td, formula):
+def invert_bits(bits, num_bits):
+    return ((1 << num_bits) - 1) ^ bits
+
+def process_table(table, td, formula, simplify_clauses):
     bag_union = td.union_of_bags()
+    forgotten = bag_union - td.node
     formula_change = FormulaChange(add=[], remove_indices=set())
 
     log.info(f"Processing table with hard weight {table.hard_weight}")
     for i, c in enumerate(formula.clauses):
-        if c.induced_by(bag_union):
+        # if c.induced_by(bag_union):
+        if any(l.var in forgotten for l in c.literals):
             # Remove clause
             formula_change.remove_indices.add(i)
             log.info(f"Found clause to be deleted {c}")
 
-    for row in table:
-        if row.cost > 0:
-            if row.cost < table.hard_weight:
-                new_cost = row.cost
-            else:
-                new_cost = formula.hard_weight
-            new_clause = Clause(
-                    new_cost,
-                    [l.negate() for l in row.assignment.to_literals()])
-            log.info(f"Found new clause {new_clause}")
-            formula_change.add.append(new_clause)
+    if simplify_clauses:
+        assignments_by_cost = {}
+        variables = None
+        for row in table:
+            if not variables:
+                variables = row.assignment.variables
+            assert row.assignment.variables == variables
+
+            local_cost = sum(c.weight for c in row.falsified)
+            forgotten_cost = row.cost - local_cost
+            if forgotten_cost > 0 and local_cost < formula.hard_weight:
+                if row.cost < table.hard_weight:
+                    # cost = row.cost
+                    cost = forgotten_cost
+                else:
+                    cost = formula.hard_weight
+                log.info(f"Found assignment {row.assignment} with cost {cost}")
+                if cost not in assignments_by_cost:
+                    assignments_by_cost[cost] = []
+                assignments_by_cost[cost].append(row.assignment)
+
+        # For each weight, minimize the clauses to be added (Quine-McCluskey)
+        for cost, assignments in assignments_by_cost.items():
+            if len(assignments) < 2:
+                log.debug(f"Only {len(assignments)} assignments of cost {cost}; "
+                          "not simplifying")
+                for assignment in assignments:
+                    new_clause = Clause(
+                            cost,
+                            [l.negate() for l in assignment.to_literals()])
+                    formula_change.add.append(new_clause)
+                    log.debug(f"Found new clause {new_clause}")
+                continue
+
+            bitstrings = [a.bits for a in assignments]
+            log.debug(f"Minimizing cost {cost} assignments "
+                      f"{[bin(s) for s in bitstrings]} over "
+                      f"{variables} using Quine-McCluskey")
+            result = qm.QuineMcCluskey().simplify(bitstrings,
+                                                  dc=[],
+                                                  num_bits=len(variables))
+            for assignment in result:
+                literals = []
+                for i, value in enumerate(assignment):
+                    if value == '1':
+                        literals.append(Literal(sign=False,
+                                                var=variables[i]))
+                    elif value == '0':
+                        literals.append(Literal(sign=True,
+                                                var=variables[i]))
+                new_clause = Clause(cost, literals)
+                formula_change.add.append(new_clause)
+                log.debug(f"Found new clause {new_clause}")
+
+    else: # not simplify_clauses
+        for row in table:
+            local_cost = sum(c.weight for c in row.falsified)
+            forgotten_cost = row.cost - local_cost
+            # Add a clause if the row's cost exceeds the local cost, unless the
+            # local cost exceeds the hard weight (since we don't care about the
+            # cost if we know that hard constraints are violated)
+            if forgotten_cost > 0 and local_cost < formula.hard_weight:
+                if row.cost < table.hard_weight:
+                    new_cost = forgotten_cost
+                else:
+                    new_cost = formula.hard_weight
+                new_clause = Clause(
+                        new_cost,
+                        [l.negate() for l in row.assignment.to_literals()])
+                log.info(f"Found new clause {new_clause}")
+                formula_change.add.append(new_clause)
+
+        # for row in table:
+        #     if row.cost > 0:
+        #         if row.cost < table.hard_weight:
+        #             new_cost = row.cost
+        #         else:
+        #             new_cost = formula.hard_weight
+        #         new_clause = Clause(
+        #                 new_cost,
+        #                 [l.negate() for l in row.assignment.to_literals()])
+        #         log.info(f"Found new clause {new_clause}")
+        #         formula_change.add.append(new_clause)
 
     if len(formula_change.add) < len(formula_change.remove_indices):
         log.info("Decrease in clauses: "
@@ -99,6 +177,12 @@ parser.add_argument("--log", default="warning")
 parser.add_argument("--max-width", type=int)
 parser.add_argument("--heuristic", choices=["min-degree", "min-fill"],
                     default="min-degree")
+parser.add_argument("--minimize-roots",
+                    action="store_true",
+                    help="Make sure roots are subsets of the remainder")
+parser.add_argument("--simplify-clauses",
+                    action="store_true",
+                    help="Simplify the clauses added to the formula")
 args = parser.parse_args()
 
 log_level_number = getattr(logging, args.log.upper(), None)
@@ -117,9 +201,11 @@ with open(args.file) as f:
     g = formula.primal_graph()
     log.info(f"Primal graph:\n{g}")
     log.info("Decomposing")
-    tds = Decomposer(g, heuristic,
+    decomposer = Decomposer(g, heuristic,
                      max_width=args.max_width,
-                     normalize=TD.weakly_normalize).decompose()
+                     normalize=TD.weakly_normalize,
+                     minimize_roots=args.minimize_roots)
+    tds = decomposer.decompose()
     for td in tds:
         log.debug(f"Partial TD:\n{td}")
 
@@ -138,7 +224,7 @@ with open(args.file) as f:
         table.write_recursively(str_io)
         log.info(str_io.getvalue())
 
-        this_change = process_table(table, td, formula)
+        this_change = process_table(table, td, formula, args.simplify_clauses)
         formula_change = FormulaChange(
             add=formula_change.add + this_change.add,
             remove_indices=(formula_change.remove_indices

@@ -76,7 +76,7 @@ class Formula(object):
                 # parameters line
                 assert len(fields) == 5 and fields[1] == "wcnf", \
                         "Unexpected file format"
-                num_vars = int(fields[2])
+                self.num_vars = int(fields[2])
                 num_clauses = int(fields[3])
                 # Weight of hard clauses must be greater than the sum of the
                 # weights of all soft clauses
@@ -92,7 +92,7 @@ class Formula(object):
                 clause = [
                         Literal.from_int(int(x))
                         for x in frozenset(fields[1:-1])]
-                assert all([1 <= l.var <= num_vars for l in clause]), \
+                assert all([1 <= l.var <= self.num_vars for l in clause]), \
                        "Invalid variable number"
                 for l in clause:
                     variables.add(l.var)
@@ -102,22 +102,22 @@ class Formula(object):
             log.warning(f"Read {len(self.clauses)} clauses, "
                         f"but {num_clauses} were declared")
 
-        if num_vars != len(variables):
+        if self.num_vars != len(variables):
             log.warning(f"Saw {len(variables)} variables, "
-                        f"but {num_vars} were declared")
+                        f"but {self.num_vars} were declared")
 
         if self.hard_weight < sum_of_soft_clauses_weight:
-            log.warning("Hard clause weight from p-line less than sum of"
+            log.warning("Hard clause weight from p-line less than sum of "
                         "weights of soft clauses")
 
     def __str__(self):
         return " & ".join([str(c) for c in self.clauses])
 
-    def variables(self):
+    def occurring_variables(self):
         return set.union(*(set(c.variables()) for c in self.clauses))
 
     def primal_graph(self):
-        g = Graph(len(self.variables()))
+        g = Graph(self.num_vars)
         for c in self.clauses:
             # make clique
             for (x, y) in [(x.var, y.var) for x in c.literals
@@ -132,12 +132,12 @@ class Formula(object):
     # Change variable names so that they are consecutive numbers.
     def remove_variable_gaps(self):
         new_var_number = {}
-        num_vars = 0
+        seen_vars = 0
         for c in self.clauses:
             for l in c.literals:
                 if l.var not in new_var_number:
-                    num_vars += 1
-                    new_var_number[l.var] = num_vars
+                    seen_vars += 1
+                    new_var_number[l.var] = seen_vars
         for c in self.clauses:
             for i, l in enumerate(c.literals):
                 c.literals[i] = Literal(l.sign, new_var_number[l.var])
@@ -145,7 +145,7 @@ class Formula(object):
 
     def consecutive_variables(self):
         """Return True if the variables are consecutive and start at 1."""
-        variables = self.variables()
+        variables = self.occurring_variables()
         max_var = max(variables)
         return min(variables) == 1 and len(variables) == max_var
 
@@ -156,7 +156,7 @@ class Formula(object):
                 f"Weight of hard clauses is {self.hard_weight}, but " \
                 f"should be greater than the sum of weights of soft clauses " \
                 + str(sum(c.weight for c in self.clauses))
-        f.write(f"p wcnf {len(self.variables())} {len(self.clauses)}"
+        f.write(f"p wcnf {len(self.occurring_variables())} {len(self.clauses)}"
                 f" {self.hard_weight}\n")
         for c in self.clauses:
             f.write(str(c.weight) + ' ' + ' '.join(str(l) for l in c.literals)

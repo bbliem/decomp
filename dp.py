@@ -405,8 +405,10 @@ if __name__ == "__main__":
         g = formula.primal_graph()
         log.debug(g)
         print("Decomposing...")
-        td = Decomposer(g, Graph.min_degree_vertex,
-                        normalize=TD.weakly_normalize).decompose()
+        tds = Decomposer(g, Graph.min_degree_vertex,
+                         normalize=TD.weakly_normalize).decompose()
+        assert len(tds) == 1
+        td = tds[0]
         log.debug(td)
         root_table = Table(td, formula)
         print("Solving...")

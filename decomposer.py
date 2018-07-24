@@ -16,6 +16,7 @@ class Decomposer(object):
         self.method = method
         self.max_width = kwargs.get("max_width")
         self.normalize = kwargs.get("normalize")
+        self.minimize_roots = kwargs.get("minimize_roots")
         if self.normalize is None:
             self.normalize = lambda td: None
 
@@ -88,8 +89,15 @@ class Decomposer(object):
             td.remove_subset_children()
         self.td_roots = [td.move_superset_children() for td in self.td_roots]
         self.connect_roots(self.graph.vertices)
-        for td in self.td_roots:
+        for i, td in enumerate(self.td_roots):
             self.normalize(td)
+            if self.minimize_roots:
+                intersection_with_remainder = td.node & self.remainder()
+                if len(intersection_with_remainder) < len(td.node):
+                    new_root = TD(intersection_with_remainder)
+                    new_root.add_child(td)
+                    self.td_roots[i] = new_root
+
         # TD.canonize_root()?
         # TD.sort()?
         return self.td_roots
