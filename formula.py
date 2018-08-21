@@ -141,7 +141,30 @@ class Formula(object):
         for c in self.clauses:
             for i, l in enumerate(c.literals):
                 c.literals[i] = Literal(l.sign, new_var_number[l.var])
+        self.num_vars = seen_vars
         assert self.consecutive_variables()
+
+    def rewrite_empty_clauses(self):
+        """Replace empty clauses by equivalent nonempty clauses."""
+        empty_clause_weights = sum(c.weight for c in self.clauses
+                                   if not c.literals)
+        if empty_clause_weights:
+            # Remove empty clauses
+            self.clauses = [c for c in self.clauses if c.literals]
+
+            # Introduce a new dummy variable
+            self.num_vars += 1
+            new_var = self.num_vars
+
+            # Add hard clause that forces new_var to be false
+            false_lit = Literal(sign=False, var=new_var)
+            self.clauses.append(Clause(weight=self.hard_weight,
+                                       literals=[false_lit]))
+
+            # Add soft clause that incurs the required cost
+            true_lit = Literal(sign=True, var=new_var)
+            self.clauses.append(Clause(weight=empty_clause_weights,
+                                       literals=[true_lit]))
 
     def consecutive_variables(self):
         """Return True if the variables are consecutive and start at 1."""
@@ -156,6 +179,7 @@ class Formula(object):
                 f"Weight of hard clauses is {self.hard_weight}, but " \
                 f"should be greater than the sum of weights of soft clauses " \
                 + str(sum(c.weight for c in self.clauses))
+        f.write(f'c {" ".join(sys.argv)}\n')
         f.write(f"p wcnf {len(self.occurring_variables())} {len(self.clauses)}"
                 f" {self.hard_weight}\n")
         for c in self.clauses:

@@ -161,3 +161,12 @@ class TD(object):
                     new_child = TD(join_elements)
                     new_child.add_child(c)
                     join_node.add_child(new_child)
+
+    def long_clause_forgotten(self, formula):
+        bag_union = self.union_of_bags()
+        forgotten = bag_union - self.node
+        long_clauses = (c for c in formula.clauses if len(c.literals) >= 3)
+        for c in long_clauses:
+            if any(l.var in forgotten for l in c.literals):
+                return True
+        return False

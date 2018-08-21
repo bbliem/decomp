@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
 import copy
+import logging
 import random
-from signal import signal, SIGPIPE, SIG_DFL
+import signal
 
 from graph import Graph
 from td import TD
+
+log = logging.getLogger(__name__)
 
 class Decomposer(object):
     """The method is a function returning the next vertex to eliminate. If
@@ -15,6 +18,7 @@ class Decomposer(object):
         self.graph = copy.deepcopy(graph)
         self.method = method
         self.max_width = kwargs.get("max_width")
+        self.time_limit = kwargs.get("time_limit")
         self.normalize = kwargs.get("normalize")
         self.minimize_roots = kwargs.get("minimize_roots")
         if self.normalize is None:
@@ -80,10 +84,24 @@ class Decomposer(object):
             else:
                 break
 
+    def _on_timeout(self):
+        raise Exception()
+
     def decompose(self):
         """Return a list of partial decompositions using parameters given in
         the constructor."""
-        self.do_eliminations()
+        # XXX SIGALRM works only on some platforms
+        if self.time_limit:
+            signal.signal(signal.SIGALRM, self._on_timeout)
+            signal.alarm(self.time_limit)
+
+        try:
+            self.do_eliminations()
+        except Exception:
+            log.debug("Decomposing aborted due to timeout")
+
+        if self.time_limit:
+            signal.alarm(0)
 
         for td in self.td_roots:
             td.remove_subset_children()
@@ -108,7 +126,7 @@ class Decomposer(object):
 
 
 if __name__ == "__main__":
-    signal(SIGPIPE, SIG_DFL)
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
     # The following graph results in TDs of different width for min-fill (3)
     # and min-degree (4)
